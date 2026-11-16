@@ -6,6 +6,7 @@
 #include "HX711.h"
 #include "secrets.h"
 #include <ESP32Servo.h>
+#include "root_ca.h"
 
 // ============================================================
 // 1. HX711 CONNECTIONS
@@ -153,9 +154,17 @@ String getJsonString(String json, const char* key) {
 // 7. HTTP GET HELPER
 // ============================================================
 
+void printTlsError(WiFiClientSecure& client) {
+  char err[128] = {0};
+  if (client.lastError(err, sizeof(err)) != 0) {
+    Serial.print("TLS error: ");
+    Serial.println(err);
+  }
+}
+
 bool httpGetJson(const String& url, String& response) {
   WiFiClientSecure client;
-  client.setInsecure();
+  client.setCACert(ROOT_CA_PEM);
   HTTPClient http;
 
   http.setTimeout(HTTP_TIMEOUT_MS);
@@ -180,6 +189,7 @@ bool httpGetJson(const String& url, String& response) {
   } else {
     Serial.print("GET failed: ");
     Serial.println(http.errorToString(code));
+    printTlsError(client);
   }
 
   http.end();
@@ -279,7 +289,7 @@ bool acknowledgeSegregationCommand(
       "/complete";
 
   WiFiClientSecure client;
-  client.setInsecure();
+  client.setCACert(ROOT_CA_PEM);
   HTTPClient http;
 
   http.setTimeout(HTTP_TIMEOUT_MS);
@@ -302,6 +312,7 @@ bool acknowledgeSegregationCommand(
   } else {
     Serial.print("Completion POST failed: ");
     Serial.println(http.errorToString(code));
+    printTlsError(client);
   }
 
   http.end();
@@ -545,7 +556,7 @@ bool submitMeasurement(
   payload += "}";
 
   WiFiClientSecure client;
-  client.setInsecure();
+  client.setCACert(ROOT_CA_PEM);
   HTTPClient http;
 
   http.setTimeout(HTTP_TIMEOUT_MS);
@@ -596,6 +607,7 @@ bool submitMeasurement(
   } else {
     Serial.print("POST failed: ");
     Serial.println(http.errorToString(code));
+    printTlsError(client);
     Serial.println(
       "No automatic POST retry will occur."
     );
@@ -618,7 +630,7 @@ bool markRequestReady(const String& requestId) {
       "/ready";
 
   WiFiClientSecure client;
-  client.setInsecure();
+  client.setCACert(ROOT_CA_PEM);
   HTTPClient http;
 
   http.setTimeout(HTTP_TIMEOUT_MS);
@@ -637,6 +649,10 @@ bool markRequestReady(const String& requestId) {
 
   if (code > 0) {
     response = http.getString();
+  } else {
+    Serial.print("Ready POST failed: ");
+    Serial.println(http.errorToString(code));
+    printTlsError(client);
   }
 
   http.end();
